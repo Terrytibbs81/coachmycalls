@@ -1,29 +1,29 @@
 require('dotenv').config();
-const WebSocket = require('ws');
 const http = require('http');
+const WebSocket = require('ws');
+const fetch = require('node-fetch');
 
-const ASSEMBLYAI_SOCKET_URL = 'wss://api.assemblyai.com/v2/realtime/ws?sample_rate=16000';
-const CLAUDE_URL = 'https://openrouter.ai/api/v1/chat/completions';
+const PORT = process.env.PORT || 10000;
 
-const server = http.createServer();
-const wss = new WebSocket.Server({ server });
+const server = http.createServer(); // base HTTP server
+const wss = new WebSocket.Server({ server }); // attach WebSocket server to it
 
 let bubbleClient = null;
 
-// WebSocket connection to Bubble
 wss.on('connection', (ws) => {
   console.log('🌐 Bubble connected');
   bubbleClient = ws;
 });
 
-// Sends message to connected Bubble client
 function sendToBubble(message) {
-  if (bubbleClient && bubbleClient.readyState === 1) {
+  if (bubbleClient && bubbleClient.readyState === WebSocket.OPEN) {
     bubbleClient.send(message);
   }
 }
 
-// Sends transcript to Claude and gets coaching feedback
+const ASSEMBLYAI_SOCKET_URL = 'wss://api.assemblyai.com/v2/realtime/ws?sample_rate=16000';
+const CLAUDE_URL = 'https://openrouter.ai/api/v1/chat/completions';
+
 async function sendToClaude(text) {
   const response = await fetch(CLAUDE_URL, {
     method: 'POST',
@@ -49,21 +49,17 @@ async function sendToClaude(text) {
   const data = await response.json();
   const reply = data.choices?.[0]?.message?.content || 'No response';
   console.log('💬 Claude says:', reply);
-  sendToBubble(reply);
+  sendToBubble(reply); // send to front-end
 }
 
-// Start the AssemblyAI WebSocket
 async function run() {
   const ws = new WebSocket(ASSEMBLYAI_SOCKET_URL, {
-    headers: {
-      Authorization: process.env.ASSEMBLYAI_API_KEY
-    }
+    headers: { Authorization: process.env.ASSEMBLYAI_API_KEY }
   });
 
   ws.on('open', () => {
     console.log('✅ Connected to AssemblyAI WebSocket');
 
-    // Simulate input for testing
     setTimeout(() => {
       const fakeTranscript = 'How do I introduce myself confidently in a business call?';
       sendToClaude(fakeTranscript);
@@ -71,15 +67,12 @@ async function run() {
   });
 
   ws.on('error', (err) => {
-    console.error('❌ AssemblyAI error:', err);
+    console.error('WebSocket error:', err);
   });
 }
 
 run();
 
-const PORT = process.env.PORT || 10000;
 server.listen(PORT, () => {
-  console.log(`🛰️ WebSocket server listening on port ${PORT}`);
+  console.log(`🛰️ Server listening on port ${PORT}`);
 });
-
-
