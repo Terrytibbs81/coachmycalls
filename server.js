@@ -1,7 +1,6 @@
 require('dotenv').config();
 const http = require('http');
 const WebSocket = require('ws');
-const fetch = require('node-fetch');
 
 const PORT = process.env.PORT || 10000;
 
