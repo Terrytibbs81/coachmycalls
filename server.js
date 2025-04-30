@@ -1,17 +1,27 @@
 require('dotenv').config();
 const WebSocket = require('ws');
-const fetch = require('node-fetch');
 const http = require('http');
+const fetch = require('node-fetch');
 const mic = require('mic');
 
-const ASSEMBLYAI_SOCKET_URL = `wss://api.assemblyai.com/v2/realtime/ws?sample_rate=16000`;
-const CLAUDE_URL = 'https://openrouter.ai/api/v1/chat/completions';
 const PORT = process.env.PORT || 10000;
+
+const ASSEMBLYAI_SOCKET_URL = 'wss://api.assemblyai.com/v2/realtime/ws?sample_rate=16000';
+const CLAUDE_URL = 'https://openrouter.ai/api/v1/chat/completions';
+
+// Bubble WebSocket server
+const server = http.createServer();
+const wss = new WebSocket.Server({ server });
 
 let bubbleClient = null;
 
+wss.on('connection', (ws) => {
+  console.log('🌐 Bubble connected');
+  bubbleClient = ws;
+});
+
 function sendToBubble(message) {
-  if (bubbleClient && bubbleClient.readyState === WebSocket.OPEN) {
+  if (bubbleClient && bubbleClient.readyState === 1) {
     bubbleClient.send(message);
   }
 }
@@ -29,8 +39,7 @@ async function sendToClaude(text) {
         messages: [
           {
             role: 'system',
-            content:
-              'You are a real-time communication coach helping users speak with clarity, confidence, and curiosity. Respond with short, actionable feedback only.',
+            content: 'You are a real-time communication coach helping users speak with clarity, confidence, and curiosity. Respond with short, actionable feedback only.',
           },
           {
             role: 'user',
@@ -49,48 +58,7 @@ async function sendToClaude(text) {
   }
 }
 
-function startMicStream(ws) {
-  const micInstance = mic({
-    rate: '16000',
-    channels: '1',
-    debug: false,
-    exitOnSilence: 6,
-  });
-
-  const micInputStream = micInstance.getAudioStream();
-
-  micInputStream.on('data', (data) => {
-    if (ws.readyState === WebSocket.OPEN) {
-      ws.send(data);
-    }
-  });
-
-  micInputStream.on('error', (err) => {
-    console.error('🎤 Mic error:', err);
-  });
-
-  micInputStream.on('silence', () => {
-    console.log('🎙️ Mic silence detected');
-  });
-
-  micInstance.start();
-}
-
-// WebSocket Server to connect to Bubble
-const server = http.createServer();
-const wss = new WebSocket.Server({ server });
-
-wss.on('connection', (ws) => {
-  console.log('🌐 Bubble connected');
-  bubbleClient = ws;
-});
-
-server.listen(PORT, () => {
-  console.log(`🚀 WebSocket server listening on port ${PORT}`);
-});
-
-// Connect to AssemblyAI
-function connectToAssemblyAI() {
+async function run() {
   const ws = new WebSocket(ASSEMBLYAI_SOCKET_URL, {
     headers: {
       Authorization: process.env.ASSEMBLYAI_API_KEY,
@@ -99,25 +67,43 @@ function connectToAssemblyAI() {
 
   ws.on('open', () => {
     console.log('✅ Connected to AssemblyAI WebSocket');
-    startMicStream(ws);
+
+    const micInstance = mic({
+      rate: '16000',
+      channels: '1',
+      debug: false,
+      exitOnSilence: 6,
+    });
+
+    const micInputStream = micInstance.getAudioStream();
+
+    micInputStream.on('data', (chunk) => {
+      ws.send(chunk);
+    });
+
+    micInputStream.on('error', (err) => {
+      console.error('Mic input error:', err);
+    });
+
+    micInstance.start();
   });
 
   ws.on('message', (message) => {
-    const msg = JSON.parse(message);
-    if (msg.text) {
-      console.log('📝 Transcript:', msg.text);
-      sendToClaude(msg.text);
+    const data = JSON.parse(message);
+    const transcript = data.text;
+    if (transcript && data.message_type === 'FinalTranscript') {
+      console.log('📝 Final transcript:', transcript);
+      sendToClaude(transcript);
     }
   });
 
   ws.on('error', (err) => {
-    console.error('❌ AssemblyAI error:', err);
-  });
-
-  ws.on('close', () => {
-    console.log('🔌 AssemblyAI connection closed, reconnecting in 5s...');
-    setTimeout(connectToAssemblyAI, 5000);
+    console.error('WebSocket error:', err);
   });
 }
 
-connectToAssemblyAI();
+run();
+
+server.listen(PORT, () => {
+  console.log(`🚀 WebSocket server listening on port ${PORT}`);
+});
