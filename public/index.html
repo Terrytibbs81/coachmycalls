@@ -1,45 +1,54 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>CoachMyCalls – Local SDK</title>
+  <title>CoachMyCalls – Deepgram</title>
   <script src="js/deepgram.min.js"></script>
   <script>
     document.addEventListener("DOMContentLoaded", async () => {
-      const transcriptEl = document.getElementById('transcript');
-      const responseEl = document.getElementById('response');
+      const transcriptEl = document.getElementById("transcript");
+      const responseEl = document.getElementById("response");
 
-      const deepgram = Deepgram.createClient("560fbffb85966d46411000f0199cd962dce12e9fY");
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        console.log("🎤 Mic permission granted");
 
-      const connection = await deepgram.listen.live({
-        model: "nova",
-        language: "en-US",
-        smart_format: true,
-      });
+        const deepgram = Deepgram.createClient("560fbffb85966d46411000f0199cd962dce12e9f");
 
-      connection.onTranscriptReceived = async (data) => {
-        const transcript = data.channel.alternatives?.[0]?.transcript;
-        if (transcript) {
-          transcriptEl.innerText = transcript;
+        const connection = await deepgram.listen.live({
+          stream,
+          model: "nova",
+          smart_format: true,
+          language: "en-US",
+        });
 
-          try {
-            const res = await fetch("https://coachmycalls.onrender.com/vapi-webhook", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ transcript }),
-            });
-            const coaching = await res.text();
-            responseEl.innerText = coaching;
-          } catch (err) {
-            console.error("Claude error:", err);
+        connection.onTranscriptReceived = async (data) => {
+          const transcript = data.channel.alternatives?.[0]?.transcript || "";
+          if (transcript) {
+            transcriptEl.innerText = transcript;
+
+            try {
+              const res = await fetch("https://coachmycalls.onrender.com/vapi-webhook", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ transcript }),
+              });
+              const coaching = await res.text();
+              responseEl.innerText = coaching;
+            } catch (err) {
+              console.error("Claude error:", err);
+            }
           }
-        }
-      };
+        };
 
-      connection.onopen = () => console.log("🔊 Deepgram connected");
-      connection.onerror = (e) => console.error("❌ Deepgram error:", e);
-      connection.onclose = () => console.log("🔇 Deepgram disconnected");
+        connection.onopen = () => console.log("🔊 Deepgram connected");
+        connection.onerror = (e) => console.error("❌ Deepgram error:", e);
+        connection.onclose = () => console.log("🔇 Deepgram disconnected");
 
-      await connection.start();
+        await connection.start();
+      } catch (err) {
+        console.error("🎤 Mic access denied or error:", err);
+        transcriptEl.innerText = "Mic access denied.";
+      }
     });
   </script>
 </head>
