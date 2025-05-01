@@ -6,7 +6,6 @@ const fetch = require("node-fetch");
 
 const app = express();
 const port = process.env.PORT || 3000;
-
 const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY;
 
 app.use(cors());
