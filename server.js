@@ -4,22 +4,25 @@ const cors = require("cors");
 const app = express();
 const port = process.env.PORT || 3000;
 
-// ✅ Enable CORS for all routes (safe default for dev)
+// ✅ Global middleware
 app.use(cors());
 app.use(express.json());
 
-// 🔹 Claude webhook endpoint
-app.post("/vapi-webhook", async (req, res) => {
+// ✅ Preflight CORS handler for browser requests
+app.options("/vapi-webhook", cors());
+
+// ✅ Main Claude-like endpoint
+app.post("/vapi-webhook", cors(), async (req, res) => {
   const transcript = req.body.transcript;
   console.log("📥 Received transcript:", transcript);
 
-  // Simulate Claude response (you can replace this with a real API call)
-  const coaching = `Try slowing down and pausing more often when you speak.`;
+  // Simulate Claude coaching output
+  const coaching = `Try slowing down and asking more questions when speaking.`;
 
   res.send(coaching);
 });
 
-// ✅ Root test route (optional)
+// Optional health check
 app.get("/", (req, res) => {
   res.send("CoachMyCalls backend is running.");
 });
