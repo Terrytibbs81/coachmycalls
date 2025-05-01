@@ -30,6 +30,3 @@ app.get("/", (req, res) => {
 app.listen(port, () => {
   console.log(`🚀 Server running on port ${port}`);
 });
-git add server.js
-git commit -m "Full CORS support for Deepgram Claude fetch"
-git push origin main
