@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>CoachMyCalls – Local SDK</title>
+  <script src="js/deepgram.min.js"></script>
+  <script>
+    document.addEventListener("DOMContentLoaded", async () => {
+      const transcriptEl = document.getElementById('transcript');
+      const responseEl = document.getElementById('response');
+
+      const deepgram = Deepgram.createClient("560fbffb85966d46411000f0199cd962dce12e9fY");
+
+      const connection = await deepgram.listen.live({
+        model: "nova",
+        language: "en-US",
+        smart_format: true,
+      });
+
+      connection.onTranscriptReceived = async (data) => {
+        const transcript = data.channel.alternatives?.[0]?.transcript;
+        if (transcript) {
+          transcriptEl.innerText = transcript;
+
+          try {
+            const res = await fetch("https://coachmycalls.onrender.com/vapi-webhook", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ transcript }),
+            });
+            const coaching = await res.text();
+            responseEl.innerText = coaching;
+          } catch (err) {
+            console.error("Claude error:", err);
+          }
+        }
+      };
+
+      connection.onopen = () => console.log("🔊 Deepgram connected");
+      connection.onerror = (e) => console.error("❌ Deepgram error:", e);
+      connection.onclose = () => console.log("🔇 Deepgram disconnected");
+
+      await connection.start();
+    });
+  </script>
+</head>
+<body>
+  <h1>Speak Now</h1>
+  <pre id="transcript">Waiting for input...</pre>
+  <pre id="response">Your coaching tip will appear here...</pre>
+</body>
+</html>
