@@ -1,28 +1,55 @@
+require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
+const path = require("path");
+const fetch = require("node-fetch");
 
 const app = express();
 const port = process.env.PORT || 3000;
 
-// ✅ Global middleware
-app.use(cors());
+const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY;
+
+app.use(cors()); // ✅ CORS globally
 app.use(express.json());
+app.use(express.static("public"));
 
-// ✅ Preflight CORS handler for browser requests
-app.options("/vapi-webhook", cors());
+app.options("/vapi-webhook", cors()); // ✅ Handle preflight
 
-// ✅ Main Claude-like endpoint
 app.post("/vapi-webhook", cors(), async (req, res) => {
   const transcript = req.body.transcript;
   console.log("📥 Received transcript:", transcript);
 
-  // Simulate Claude coaching output
-  const coaching = `Try slowing down and asking more questions when speaking.`;
+  try {
+    const response = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "x-api-key": CLAUDE_API_KEY,
+        "anthropic-version": "2023-06-01",
+        "content-type": "application/json"
+      },
+      body: JSON.stringify({
+        model: "claude-3-haiku-20240307",
+        max_tokens: 200,
+        temperature: 0.7,
+        messages: [
+          {
+            role: "user",
+            content: `Give feedback to help someone improve their speaking style. Here's what they said: "${transcript}"`
+          }
+        ]
+      })
+    });
 
-  res.send(coaching);
+    const data = await response.json();
+    const coaching = data?.content?.[0]?.text || "No response from Claude.";
+    console.log("💬 Claude says:", coaching);
+    res.send(coaching);
+  } catch (err) {
+    console.error("❌ Claude API error:", err);
+    res.status(500).send("Claude API error");
+  }
 });
 
-// Optional health check
 app.get("/", (req, res) => {
   res.send("CoachMyCalls backend is running.");
 });
