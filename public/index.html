@@ -22,8 +22,11 @@
         });
 
         connection.onTranscriptReceived = async (data) => {
+          console.log("📡 Raw transcript event:", data);
+
           const transcript = data.channel.alternatives?.[0]?.transcript || "";
           if (transcript) {
+            console.log("📝 Transcript:", transcript);
             transcriptEl.innerText = transcript;
 
             try {
@@ -45,6 +48,18 @@
         connection.onclose = () => console.log("🔇 Deepgram disconnected");
 
         await connection.start();
+        console.log("🚀 Streaming started");
+
+        // ✅ Manual test transcript after 3 seconds
+        setTimeout(() => {
+          const fakeData = {
+            channel: {
+              alternatives: [{ transcript: "This is a test transcript" }]
+            }
+          };
+          connection.onTranscriptReceived?.(fakeData);
+        }, 3000);
+
       } catch (err) {
         console.error("🎤 Mic access denied or error:", err);
         transcriptEl.innerText = "Mic access denied.";
